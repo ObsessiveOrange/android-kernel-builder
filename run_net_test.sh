@@ -12,4 +12,4 @@ fi
 check-var-set KERNEL_REPO_HOME || exit -1
 check-var-set ANDROID_REPO_HOME || exit -1
 
-docker run --name uml-android -it --rm --privileged -v /dev/shm:/dev/shm -v $KERNEL_REPO_HOME:/data/kernel -v $ANDROID_REPO_HOME:/data/aosp k-builder /data/aosp/kernel/tests/net/test/run_net_test.sh "$@"
+docker run --name uml-android -it --rm --privileged -v /dev/shm:/dev/shm -v $KERNEL_REPO_HOME:/data/kernel -v $ANDROID_REPO_HOME:/data/aosp k-builder /scripts/entrypoint.sh "$@"

@@ -1,8 +1,9 @@
 FROM ubuntu:14.04
 
-RUN mkdir /data
-
 RUN apt-get update
-RUN apt-get install -y build-essential bc wget gdb libssl-dev
+RUN apt-get install -y build-essential bc wget gdb libssl-dev git
+
+ADD scripts /scripts
+RUN mkdir /data
 
 WORKDIR /data/kernel
