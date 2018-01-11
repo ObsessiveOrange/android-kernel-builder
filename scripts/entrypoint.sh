@@ -51,4 +51,7 @@ while [ -n "$1" ]; do
   esac
 done
 
+# Temporary workaround for https://github.com/moby/moby/issues/6758
+mount -o remount,exec /dev/shm
+
 /data/aosp/kernel/tests/net/test/run_net_test.sh "$@"
