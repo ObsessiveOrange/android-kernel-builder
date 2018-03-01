@@ -101,7 +101,7 @@ until [ $n -ge $RUN_COUNT ]; do
   RES=$?
   echo "RESULT: $RES"
   if [ $RES != 0 ]; then
-    printf "\n\n\e[32mRan tests %d times before error occurred\e[0m\n" $[n+1]
+    printf "\n\n\e[31mRan tests %d times before error occurred\e[0m\n" $n
     exit $RES
   fi
 

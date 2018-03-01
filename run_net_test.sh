@@ -70,5 +70,3 @@ else
   echo "TESTS RAN FULLY"
   exit $RESULT
 fi
-
-# k-test --builder xfrm_tunnel_test.py & wait && echo "passed"
