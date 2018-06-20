@@ -1,5 +1,6 @@
 #!/bin/bash
 
+function print-ok() { printf '\e[32m%s\e[0m\n' "$1"; }
 function print-error() { printf '\e[31m%s\e[0m\n' "$1"; }
 function check-var-set() {
  if [ -z "${!1}" ]; then
@@ -14,6 +15,8 @@ KERNEL_REPO_HOME=$2
 
 check-var-set KERNEL_REPO_HOME || exit -1
 check-var-set ANDROID_REPO_HOME || exit -1
+
+echo "Running Kernel tests from $ANDROID_REPO_HOME, on $KERNEL_REPO_HOME"
 
 # Use workaround with --privileged until new version of docker hits apt:
 # Bug with /dev/shm and noexec flag: https://github.com/moby/moby/issues/6758
@@ -64,7 +67,7 @@ else
 fi
 
 if [ -s "$grepstat" ]; then
-  echo "TESTS HUNG - FAILED"
+  print-error "TESTS HUNG - FAILED"
   exit 1
 else
   echo "TESTS RAN FULLY"

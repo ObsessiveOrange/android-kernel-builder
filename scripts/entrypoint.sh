@@ -86,6 +86,8 @@ while [[ $# -ge 1 ]]; do
 done
 
 n=0
+SUCCESS_COUNTER=0
+
 until [ $n -ge $RUN_COUNT ]; do
   # Print run counter
   printf "\n\n\e[32mRun %d of %d\e[0m\n" $[n+1] $RUN_COUNT
@@ -97,19 +99,25 @@ until [ $n -ge $RUN_COUNT ]; do
     /data/android/kernel/tests/net/test/run_net_test.sh --nobuild "$@"
   fi
 
-  # Return if result non-zero
+  # Increment success counter if result was 0
   RES=$?
   echo "RESULT: $RES"
-  if [ $RES != 0 ]; then
-    printf "\n\n\e[31mRan tests %d times before error occurred\e[0m\n" $n
-    exit $RES
+  if [ $RES == 0 ]; then
+    SUCCESS_COUNTER=$[$SUCCESS_COUNTER+1]
   fi
 
-  # Increment counter
+  # Increment run counter
   n=$[$n+1]
   sleep 1
 done
 
 
-printf "\n\n\e[32mSuccessfully ran tests %d times\e[0m\n" $RUN_COUNT
+# Pretty-print results:
+if [ $SUCCESS_COUNTER == $RUN_COUNT ]; then
+  MSG_COLOR='32'
+else
+  MSG_COLOR='31'
+fi
+
+printf "\n\n\e[%smTests succeeded %d of %d times\e[0m\n" $MSG_COLOR $SUCCESS_COUNTER $RUN_COUNT
 exit 0
