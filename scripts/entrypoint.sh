@@ -14,8 +14,10 @@ function usageAndExit() {
 
   options:
   -h, --help                     show this menu
-  -c, --clean                    cleans build directory before running
   -b, --branch                   checks out a specific branch, pulls and cleans before running
+  -c, --clean                    cleans build directory before running
+  -n, --run-count                runs the specified tests n times (without rebuild)
+  -q, --quiet                    silences output from kernel tests
 HERE_DOCUMENT_DELIMITER
   exit 0
 }
@@ -54,13 +56,24 @@ mount -t overlay overlay -o lowerdir=/data/kernel-ro,upperdir=/data/kernel-upper
 # Change to correct directory
 cd /data/kernel
 
+# Set defaults
 RUN_COUNT=1
+CRASH_LOG_LINES=10
+exec 5>&1 # Store an output for subshells to tee back to the parent shell
 
 # Parse arguments
 while [[ $# -ge 1 ]]; do
   case "$1" in
     -h|--help)
       usageAndExit
+      ;;
+    -b|--branch)
+      checkArgOrExit $@
+      git reset --hard
+      git checkout "$2"
+      git pull
+      k-clean
+      shift 2
       ;;
     -c|--clean)
       k-clean
@@ -71,13 +84,9 @@ while [[ $# -ge 1 ]]; do
       RUN_COUNT=$2
       shift 2
       ;;
-    -b|--branch)
-      checkArgOrExit $@
-      git reset --hard
-      git checkout "$2"
-      git pull
-      k-clean
-      shift 2
+    -q|--quiet)
+      exec 5>/dev/null
+      shift
       ;;
     *)
       break
@@ -87,6 +96,7 @@ done
 
 n=0
 SUCCESS_COUNTER=0
+CRASH_COUNTER=0
 
 until [ $n -ge $RUN_COUNT ]; do
   # Print run counter
@@ -94,16 +104,21 @@ until [ $n -ge $RUN_COUNT ]; do
 
   # Only build on first run
   if [ $n == 0 ]; then
-    /data/android/kernel/tests/net/test/run_net_test.sh "$@"
+    OUTPUT=$(/data/android/kernel/tests/net/test/run_net_test.sh "$@" 2>&1 | tee >(cat - >&5) | tail -n $CRASH_LOG_LINES)
   else
-    /data/android/kernel/tests/net/test/run_net_test.sh --nobuild "$@"
+    OUTPUT=$(/data/android/kernel/tests/net/test/run_net_test.sh --nobuild "$@" 2>&1 | tee >(cat - >&5) | tail -n $CRASH_LOG_LINES)
   fi
 
   # Increment success counter if result was 0
-  RES=$?
-  echo "RESULT: $RES"
-  if [ $RES == 0 ]; then
+  if [[ "$OUTPUT" == *"Kernel panic"* ]]; then
+    printf "\e[33mLast $CRASH_LOG_LINES lines of output: \n-----\n$OUTPUT\n-----\n\e[0m"
+    echo "System crashed."
+    CRASH_COUNTER=$[$CRASH_COUNTER+1]
+
+  elif [[ "$OUTPUT" != *"FAILED"* ]]; then
+    echo "Success."
     SUCCESS_COUNTER=$[$SUCCESS_COUNTER+1]
+
   fi
 
   # Increment run counter
@@ -119,5 +134,5 @@ else
   MSG_COLOR='31'
 fi
 
-printf "\n\n\e[%smTests succeeded %d of %d times\e[0m\n" $MSG_COLOR $SUCCESS_COUNTER $RUN_COUNT
+printf "\n\n\e[%smTests succeeded %d of %d times, with %d crashes\e[0m\n" $MSG_COLOR $SUCCESS_COUNTER $RUN_COUNT $CRASH_COUNTER
 exit 0
