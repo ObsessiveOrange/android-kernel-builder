@@ -14,10 +14,12 @@ function usageAndExit() {
 
   options:
   -h, --help                     show this menu
-  -b, --branch                   checks out a specific branch, pulls and cleans before running
+  -b, --branch <ARG>             checks out a specific branch, pulls and cleans before running
   -c, --clean                    cleans build directory before running
-  -n, --run-count                runs the specified tests n times (without rebuild)
+  -d, --debug-shell              drop into debug shell; will never run tests
+  -n, --run-count <ARG>          runs the specified tests n times (without rebuild)
   -q, --quiet                    silences output from kernel tests
+  -u, --uml                      force uml instead of qemu
 HERE_DOCUMENT_DELIMITER
   exit 0
 }
@@ -42,12 +44,8 @@ mkdir -p /data/kernel-work
 # Prevents tests from hanging; I believe it's something to do with the UML
 # kernel attempting to write back, and probably waiting for the file to appear.
 # This would then fail because of the copy-on-write.
-ROOTFS_NAME=$(ls /data/android-ro/kernel/tests/net/test | grep net_test.rootfs*)
-if [ ! -z "$ROOTFS_NAME" ]; then
-  echo $ROOTFS_NAME
-  mkdir -p /data/android-upper/kernel/tests/net/test
-  cp /data/android-ro/kernel/tests/net/test/$ROOTFS_NAME /data/android-upper/kernel/tests/net/test/$ROOTFS_NAME
-fi
+mkdir -p /data/android-upper/kernel/tests/net/test
+cp /data/android-ro/kernel/tests/net/test/net_test.rootfs* /data/android-upper/kernel/tests/net/test/
 
 # Mount a copy-on-write OverlayFS to prevent things being written back to the host.
 mount -t overlay overlay -o lowerdir=/data/android-ro,upperdir=/data/android-upper,workdir=/data/android-work /data/android
@@ -58,8 +56,12 @@ cd /data/kernel
 
 # Set defaults
 RUN_COUNT=1
-CRASH_LOG_LINES=10
+CRASH_LOG_LINES=50
 exec 5>&1 # Store an output for subshells to tee back to the parent shell
+
+# Default to using qemu
+export ARCH="x86_64"
+export DEFCONFIG="x86_64_cuttlefish_defconfig"
 
 # Parse arguments
 while [[ $# -ge 1 ]]; do
@@ -79,6 +81,11 @@ while [[ $# -ge 1 ]]; do
       k-clean
       shift
       ;;
+    -d|--debug-shell)
+      bash
+      shift
+      exit 0
+      ;;
     -n)
       checkArgOrExit $@
       RUN_COUNT=$2
@@ -87,6 +94,10 @@ while [[ $# -ge 1 ]]; do
     -q|--quiet)
       exec 5>/dev/null
       shift
+      ;;
+    -u|--uml)
+      unset ARCH
+      unset DEFCONFIG
       ;;
     *)
       break
@@ -98,9 +109,18 @@ n=0
 SUCCESS_COUNTER=0
 CRASH_COUNTER=0
 
+# Set qmeu image if necessary:
+if [ ! -z "$ARCH" ]; then
+  pushd /data/android/kernel/tests/net/test/ &>/dev/null
+  export ROOTFS=$(ls -r1 net_test.rootfs* | head -n1)
+  popd &>/dev/null
+  echo "Using qemu image $ROOTFS"
+fi
+
 until [ $n -ge $RUN_COUNT ]; do
   # Print run counter
   printf "\n\n\e[32mRun %d of %d\e[0m\n" $[n+1] $RUN_COUNT
+
 
   # Only build on first run
   if [ $n == 0 ]; then
@@ -123,7 +143,7 @@ until [ $n -ge $RUN_COUNT ]; do
 
   # Increment run counter
   n=$[$n+1]
-  sleep 1
+  printf "\n\nCurrent stats: succeeded %d of %d times, with %d crashes\n" $SUCCESS_COUNTER $n $CRASH_COUNTER
 done
 
 
